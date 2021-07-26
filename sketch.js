@@ -10,7 +10,6 @@
   move gx,gy. only show if within the editor
   rename canvasd
   allow canvasd to determine all dimensions
-  rename getEditPointInfo to getEditorPointInfo
   rename drawline (drawFractal?)
   show fractal dimension
   add randomness w/slider
@@ -18,6 +17,7 @@
   update gx,gy only if in editorwindow
   viewport editorline
   viewport drawlines
+  rename gen,genIndex,md,mp,mdnode
 */
 
 // Fixed variables
@@ -29,6 +29,7 @@ var radius = 7;
 var maxDepth = 1;
 var minSeg = 1;
 var sides = 1;
+var pnoise = 0;
 
 // Editor parameters
 var gradius;
@@ -47,13 +48,15 @@ var sliders = [
   [1, 60, 6, controlsX, controlsY, 100, "Recursion Depth"],
   [1, 20, 15, controlsX, controlsY + 20, 100, "Minimum Segment"],
   [1, 8, 1, controlsX, controlsY + 40, 100, "Sides"],
+  [0, 100, 0, controlsX, controlsY + 60, 100, "Random %"],
 ];
+var xylines = [controlsX + 10, controlsY + 95];
 
 // Graphic variables
 var gen = []; // set of generator points
 var gen2canv = []; // generator to canvas transform matrix
 var lines = 0;
-var genIndex = "Koch";
+var genIndex = "Custom";
 var generators = {
   Koch: [
     [
@@ -380,7 +383,7 @@ function pointDistance(x1, y1, x2, y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
-function getEditPointInfo(x0, y0) {
+function getEditorPointInfo(x0, y0) {
   let isclose = false;
   let isnode = false;
   let inode = 0;
@@ -425,6 +428,8 @@ function getEditPointInfo(x0, y0) {
   return [isclose, isnode, inode, isfixed, x, y];
 }
 
+// Called by drawLine, which is recursing on every line segment
+// Calculation intensive code path- generate a new matrix for every line segment
 function fracture(hyp, x1, y1, x2, y2, x0 = 0, y0 = 0, sx = 1, sy = 1) {
   //hyp = sqrt(hyp);//(y2 - y1) * (y2 - y1) + (x2 - x1) * (x2 - x1));
   let opp = y2 - y1;
@@ -457,7 +462,9 @@ function drawLine(dep, x1, y1, x2, y2) {
   const dist = pointDistance(x1, y1, x2, y2);
   const d = dep + 1;
   if (d > maxDepth || dist < radius) {
-    line(x1, height - y1, x2, height - y2);
+    // Reconcile to the javascript canvas in the y direction
+    //line(x1, height - y1, x2, height - y2);
+    line(x1, y1, x2, y2);
     lines++;
   } else {
     const l = fracture(dist, x1, y1, x2, y2);
@@ -472,7 +479,7 @@ function readAndDrawControls() {
   let g = radio.value();
   if (g != genIndex) {
     if (genIndex == "Custom") {
-      // save current settings to custom if we are changing to a preset
+      // Save current settings to custom if we are changing to a preset
       generators["Custom"] = [clone(gen), maxDepth, minSeg, sides];
     }
     gen = clone(generators[g][0]);
@@ -487,6 +494,7 @@ function readAndDrawControls() {
   maxDepth = sliders[0][7].value();
   minSeg = sliders[1][7].value();
   sides = sliders[2][7].value();
+  pnoise = sliders[3][7].value();
 
   // Draw
   for (const s of sliders) {
@@ -505,8 +513,8 @@ function readAndDrawEditor() {
   [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
   text(
     "x " + gx.toFixed(2) + " y " + gy.toFixed(2) + " lines " + lines,
-    controlsX + 10,
-    controlsY + 75
+    xylines[0],
+    xylines[1]
   );
   if (md && mdnode != 0) {
     // TODO: prevent assignment to same coordinates as neighbors
@@ -525,22 +533,28 @@ function readAndDrawEditor() {
     line(x1, y1, x2, y2);
   }
 
-  var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
+  var [isclose, isnode, inode, isfixed, x, y] = getEditorPointInfo(gx, gy);
   [[cx, cy]] = transform([[x, y]], edit2canv);
 
   if (isclose) {
+    push();
     fill("black");
     for (i = 0; i < gen.length; i++) {
       [[x, y]] = transform([[gen[i][0], gen[i][1]]], edit2canv);
       circle(x, y, radius);
     }
     if (isnode) {
+      if (mp) {
+        stroke("white");
+      }
       fill("red");
     } else {
       fill("white");
     }
     circle(cx, cy, radius);
+    //noStroke();
     fill("black");
+    pop();
   }
 }
 
@@ -550,7 +564,7 @@ function mousePressed() {
     let gy;
     mp = true;
     [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
-    var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
+    var [isclose, isnode, inode, isfixed, x, y] = getEditorPointInfo(gx, gy);
     if (isclose && !isnode) {
       // Add a new node
       gen.splice(inode, 0, [x, y]);
@@ -573,7 +587,7 @@ function mouseDragged() {
     let gy;
     md = true;
     [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
-    var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
+    var [isclose, isnode, inode, isfixed, x, y] = getEditorPointInfo(gx, gy);
     if (isnode && !isfixed) {
       mdnode = inode;
     } else {
@@ -607,6 +621,7 @@ function setupEditor() {
   let x2 = editorLine[2];
   let y2 = editorLine[3];
   let hyp = pointDistance(x1, y1, x2, y2);
+  // The editor line is never rotated; do a reflection by negating the y scale factor
   calculateMatrices(hyp, x1, y1, x2, y2, 0, 1, 1, -1);
   [[x1, y1], [x2, y2]] = transform(
     [
@@ -624,12 +639,47 @@ function setup() {
   setupControls();
   setupEditor();
 }
-
+/*
+var params=[
+  [width/2,height/2],
+  [-250,0,500],
+  [-250,0,500],
+  [-150,0,300],
+  [-150,0,300],
+  [-150,0,300],
+  [-150,0,300],
+  [-150,0,300],
+  [-150,0,000],
+  ];*/
 function draw() {
   background(192);
   readAndDrawControls();
   readAndDrawEditor();
   lines = 0;
-  drawLine(1, 50, 300, 550, 300);
+  oy=height/2;
+  ox=width/2;
+  /*
+  sides origin   offset  side  delta angle
+  1     300,300  -250,0  -2*x   0
+  2     300,300  -250,0  -2*x   2pi/n
+  3     300,300  -150 
+  4     300,300  -150
+  5     300,300  
+  6     300,300  
+  7     300,300  
+  8     300,300  
+  
+  */
+  dtheta=2*3.14159/sides;
+  scale(1,-1);
+  translate(200,-height/2);
+  for (let i = 0; i < sides; i++) {
+    drawLine(1, 0, 0, 150, 0);
+    translate(150,0);
+    rotate(-dtheta);
+    //break;
+  }
+  //text(sides,20,height-20);
+  //drawLine(1, 50, 300, 550, 300);
   //drawLine(1, 550, 300, 50, 300);
 }
