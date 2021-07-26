@@ -4,11 +4,8 @@
   https://www.w3schools.com/howto/howto_css_custom_checkbox.asp
   
   TODO:
-  Refine references
+  Refine reference urls
   Fix css
-  rename ldistance lineDistance
-  rename pdistance pointDistance
-  rename genLine editorLine
   add more presets
   add more lines, rotated
   move gx,gy. only show if within the editor
@@ -21,6 +18,12 @@
   group functionality in source code
   remove oldx,oldy 
   limit number of segments
+  update gx,gy only if in editorwindow
+  print lines next to gx/gy
+  instead of printing gx,gy print x,y
+  window editorline
+  window drawlines
+  use sides
 */
 
 var canvasd = [600, 600];
@@ -35,7 +38,7 @@ var sliders = [
 
 var gen;
 var genIndex = "Koch";
-var genLine = [250, 500, 590, 500];
+var editorLine = [250, 500, 590, 500];
 var generators = {
   Koch: [
     [
@@ -266,14 +269,25 @@ var generators = {
     [
       [0, 0],
       [0.5, 0],
-      [0.25, 0.29],
-      [0.75, 0.29],
+      [0.25, 0.28868],
+      [0.75, 0.28868],
       [0.5, 0],
       [1, 0],
     ],
     10,
     20,
     1,
+  ],
+  split: [
+    [
+      [0.0, 0.0],
+      [0.1, 0.1],
+      [0.9, 0.1],
+      [1, 0.0],
+    ],
+    6,
+    5,
+    2,
   ],
   Custom: [
     [
@@ -360,7 +374,7 @@ function xlat(pts, arr) {
 
 // see https://en.wikipedia.org/wiki/Linear_equation#General_(or_standard)_form
 // see https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
-function ldistance(x1, y1, x2, y2, x0, y0) {
+function lineDistance(x1, y1, x2, y2, x0, y0) {
   let a = y1 - y2;
   let b = x2 - x1;
   let c = x1 * y2 - x2 * y1;
@@ -374,7 +388,7 @@ function ldistance(x1, y1, x2, y2, x0, y0) {
   return [abs(num) / sqrt(den), x, y];
 }
 
-function pdistance(x1, y1, x2, y2) {
+function pointDistance(x1, y1, x2, y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
@@ -386,7 +400,7 @@ function getpoint(x0, y0) {
   let x = x0;
   let y = y0;
   for (let i = 0; i < gen.length; i++) {
-    if (pdistance(gen[i][0], gen[i][1], x0, y0) <= gradius) {
+    if (pointDistance(gen[i][0], gen[i][1], x0, y0) <= gradius) {
       isclose = true;
       isnode = true;
       inode = i;
@@ -404,7 +418,7 @@ function getpoint(x0, y0) {
       y1 = gen[i - 1][1];
       x2 = gen[i][0];
       y2 = gen[i][1];
-      [d, xn, yn] = ldistance(x1, y1, x2, y2, x0, y0);
+      [d, xn, yn] = lineDistance(x1, y1, x2, y2, x0, y0);
       if (d <= gradius) {
         if (
           ((xn >= x1 && xn <= x2) || (xn >= x2 && xn <= x1)) &&
@@ -447,12 +461,14 @@ function fracture(hyp, x1, y1, x2, y2, x0 = 0, y0 = 0, sx = 1, sy = 1) {
 }
 
 function drawline(dep, x1, y1, x2, y2) {
-  const dist = pdistance(x1, y1, x2, y2);
+  if (lines > 30000) {
+    return;
+  }
+  const dist = pointDistance(x1, y1, x2, y2);
   const d = dep + 1;
   if (d > maxDepth || dist < radius) {
-    if (lines++ < 100000) {
-      line(x1, height - y1, x2, height - y2);
-    }
+    line(x1, height - y1, x2, height - y2);
+    lines++;
   } else {
     const l = fracture(dist, x1, y1, x2, y2);
     for (let i = 1; i < l.length; i++) {
@@ -575,11 +591,11 @@ function mouseDragged() {
 }
 
 function setupEditor() {
-  let x1 = genLine[0];
-  let y1 = genLine[1];
-  let x2 = genLine[2];
-  let y2 = genLine[3];
-  let hyp = pdistance(x1, y1, x2, y2);
+  let x1 = editorLine[0];
+  let y1 = editorLine[1];
+  let x2 = editorLine[2];
+  let y2 = editorLine[3];
+  let hyp = pointDistance(x1, y1, x2, y2);
   calculateMatrices(hyp, x1, y1, x2, y2, 0, 1, 1, -1);
   [[x1, y1], [x2, y2]] = xlat(
     [
@@ -588,7 +604,7 @@ function setupEditor() {
     ],
     canv2edit
   );
-  gradius = pdistance(x1, y1, x2, y2);
+  gradius = pointDistance(x1, y1, x2, y2);
 }
 
 function setup() {
@@ -623,5 +639,6 @@ function draw() {
   drawEditor();
   lines = 0;
   drawline(1, 50, 300, 550, 300);
+  //drawline(1, 550, 300, 50, 300);
   text(lines, 10, height - 10);
 }
