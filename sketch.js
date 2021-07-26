@@ -79,7 +79,7 @@ var generators = {
     20,
     5,
   ],
-  Briar: [
+  Plate57: [
     [
       [0, 0],
       [0.3, 0],
