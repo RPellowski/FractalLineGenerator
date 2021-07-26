@@ -6,39 +6,54 @@
   TODO:
   Refine reference urls
   Fix css
-  add more presets
-  add more lines, rotated
+  add more lines, rotated (use sides)
   move gx,gy. only show if within the editor
   rename canvasd
   allow canvasd to determine all dimensions
-  rename getpoint to getEditorPointInfo
+  rename getEditPointInfo to getEditorPointInfo
   rename drawline (drawFractal?)
   show fractal dimension
   add randomness w/slider
   group functionality in source code
-  remove oldx,oldy 
-  limit number of segments
   update gx,gy only if in editorwindow
-  print lines next to gx/gy
-  instead of printing gx,gy print x,y
-  window editorline
-  window drawlines
-  use sides
+  viewport editorline
+  viewport drawlines
 */
 
+// Fixed variables
 var canvasd = [600, 600];
-var radio;
+var maxLines = 50000;
+var radius = 7;
+
+// Adjustable parameters
+var maxDepth = 1;
+var minSeg = 1;
+var sides = 1;
+
+// Editor parameters
+var gradius;
+var editorLine = [250, 500, 590, 500];
+var edit2canv = []; // editor to canvas transform matrix
+var canv2edit = []; // canvas to editor transform matrix
+var md = false;
+var mp = false;
+var mdnode = 0;
+
+// Control variables
 var controlsX = 10;
 var controlsY = canvasd[1] - 200 + 25;
+var radio;
 var sliders = [
   [1, 60, 6, controlsX, controlsY, 100, "Recursion Depth"],
   [1, 20, 15, controlsX, controlsY + 20, 100, "Minimum Segment"],
   [1, 8, 1, controlsX, controlsY + 40, 100, "Sides"],
 ];
 
-var gen;
+// Drawing variables
+var gen = []; // set of generator points
+var gen2canv = []; // generator to canvas transform matrix
+var lines = 0;
 var genIndex = "Koch";
-var editorLine = [250, 500, 590, 500];
 var generators = {
   Koch: [
     [
@@ -64,8 +79,134 @@ var generators = {
     5,
     1,
   ],
-  // Cacti
-  // Kanagawa:
+  Fern: [
+    [
+      [0, 0],
+      [0.68, 0.13],
+      [0.5, 0.32],
+      [0.82, 0.13],
+      [0.5, 0],
+      [1, 0],
+    ],
+    20,
+    20,
+    1,
+  ],
+  Dragons: [
+    [
+      [0, 0],
+      [0.11, 0.15],
+      [0.2, 0.28],
+      [0.35, 0.41],
+      [0.29, 0.14],
+      [0.27, 0.01],
+      [0.4, -0.05],
+      [0.44, -0.05],
+      [1, 0],
+    ],
+    6,
+    20,
+    1,
+  ],
+  Easter: [
+    [
+      [0, 0],
+      [0.24, -0.07],
+      [0.59, -0.09],
+      [0.5, 0.27],
+      [0.38, 0.24],
+      [0.36, 0.12],
+      [0.39, -0.07],
+      [1, 0],
+    ],
+    6,
+    20,
+    1,
+  ],
+  Mushroom: [
+    [
+      [0, 0],
+      [-0.05, -0.19],
+      [0.23, -0.2],
+      [0.39, 0.35],
+      [0.72, -0.24],
+      [0.81, -0.08],
+      [1, 0],
+    ],
+    20,
+    20,
+    1,
+  ],
+  Windmills: [
+    [
+      [0, 0],
+      [0, -0.05],
+      [0.45, -0.04],
+      [0.44, -0.02],
+      [0.47, 0.48],
+      [0.41, -0.02],
+      [0.69, 0.02],
+      [0.93, 0.02],
+      [1, 0],
+    ],
+    20,
+    20,
+    1,
+  ],
+  Castle: [
+    [
+      [0, 0],
+      [0, -0.15],
+      [0.33, -0.15],
+      [0.33, 0.05],
+      [0.66, 0.05],
+      [0.66, -0.15],
+      [1, -0.15],
+      [1, 0],
+    ],
+    6,
+    20,
+    1,
+  ],
+  QofH: [
+    [
+      [0, 0],
+      [0.3, -0.15],
+      [0.75, 0.25],
+      [0.25, 0.25],
+      [0.7, -0.15],
+      [1, 0],
+    ],
+    10,
+    20,
+    1,
+  ],
+  Menger: [
+    [
+      [0, 0],
+      [0.5, 0],
+      [0.25, 0.28868],
+      [0.75, 0.28868],
+      [0.5, 0],
+      [1, 0],
+    ],
+    10,
+    20,
+    1,
+  ],
+  Honeycomb: [
+    [
+      [0, 0],
+      [0.25, 0.25],
+      [0.75, 0.26],
+      [0.25, 0.26],
+      [0.75, 0.25],
+      [1, 0],
+    ],
+    10,
+    20,
+    1,
+  ],
   Scorpion: [
     [
       [0, 0],
@@ -87,7 +228,7 @@ var generators = {
     20,
     1,
   ],
-  what: [
+  Seuss: [
     [
       [0, 0],
       [0.18, 0.03],
@@ -102,21 +243,7 @@ var generators = {
     20,
     1,
   ],
-  mushroom: [
-    [
-      [0, 0],
-      [-0.05, -0.19],
-      [0.23, -0.2],
-      [0.39, 0.35],
-      [0.72, -0.24],
-      [0.81, -0.08],
-      [1, 0],
-    ],
-    20,
-    20,
-    1,
-  ],
-  lineup: [
+  Lineup: [
     [
       [0, 0],
       [0.12, 0.02],
@@ -132,52 +259,7 @@ var generators = {
     20,
     1,
   ],
-  dragons: [
-    [
-      [0, 0],
-      [0.11, 0.15],
-      [0.2, 0.28],
-      [0.35, 0.41],
-      [0.29, 0.14],
-      [0.27, 0.01],
-      [0.4, -0.05],
-      [0.44, -0.05],
-      [1, 0],
-    ],
-    6,
-    20,
-    1,
-  ],
-  // porcupine: [[[0.07,-0.08],[ 0.60,0.08],[ 0.05,0.04],[ 0.81,0.24 ],[0.59,0],[1,0]],6,20,1],
-  fern: [
-    [
-      [0, 0],
-      [0.68, 0.13],
-      [0.5, 0.32],
-      [0.82, 0.13],
-      [0.5, 0],
-      [1, 0],
-    ],
-    20,
-    20,
-    1,
-  ],
-  easter: [
-    [
-      [0, 0],
-      [0.24, -0.07],
-      [0.59, -0.09],
-      [0.5, 0.27],
-      [0.38, 0.24],
-      [0.36, 0.12],
-      [0.39, -0.07],
-      [1, 0],
-    ],
-    6,
-    20,
-    1,
-  ],
-  tiara: [
+  Tiara: [
     [
       [0, 0],
       [0.62, -0.16],
@@ -191,38 +273,7 @@ var generators = {
     20,
     1,
   ],
-  windmills: [
-    [
-      [0, 0],
-      [0, -0.05],
-      [0.45, -0.04],
-      [0.44, -0.02],
-      [0.47, 0.48],
-      [0.41, -0.02],
-      [0.69, 0.02],
-      [0.93, 0.02],
-      [1, 0],
-    ],
-    20,
-    20,
-    1,
-  ],
-  castle: [
-    [
-      [0, 0],
-      [0, -0.15],
-      [0.33, -0.15],
-      [0.33, 0.05],
-      [0.66, 0.05],
-      [0.66, -0.15],
-      [1, -0.15],
-      [1, 0],
-    ],
-    6,
-    20,
-    1,
-  ],
-  mandelbrot: [
+  Mandelbrot: [
     [
       [0, 0],
       [0.14, -0.06],
@@ -238,57 +289,9 @@ var generators = {
     20,
     1,
   ],
-  //circle: [[[0,0],[.10,0],[ 0,0.05],[ 1,-0.05],[ 0.90,0],[1,0]],60,20,1],
-  honeycomb: [
-    [
-      [0, 0],
-      [0.25, 0.25],
-      [0.75, 0.26],
-      [0.25, 0.26],
-      [0.75, 0.25],
-      [1, 0],
-    ],
-    10,
-    20,
-    1,
-  ],
-  ring: [
-    [
-      [0, 0],
-      [0.3, -0.15],
-      [0.75, 0.25],
-      [0.25, 0.25],
-      [0.7, -0.15],
-      [1, 0],
-    ],
-    10,
-    20,
-    1,
-  ],
-  menger: [
-    [
-      [0, 0],
-      [0.5, 0],
-      [0.25, 0.28868],
-      [0.75, 0.28868],
-      [0.5, 0],
-      [1, 0],
-    ],
-    10,
-    20,
-    1,
-  ],
-  split: [
-    [
-      [0.0, 0.0],
-      [0.1, 0.1],
-      [0.9, 0.1],
-      [1, 0.0],
-    ],
-    6,
-    5,
-    2,
-  ],
+  // Circle: [[[0,0],[0.10,0],[ 0,0.05],[ 1,-0.05],[ 0.90,0],[1,0]],6,20,1],
+  // Cacti
+  // Kanagawa:
   Custom: [
     [
       [0, 0],
@@ -300,31 +303,13 @@ var generators = {
   ],
 };
 
-var maxDepth = 0;
-var minSeg = 0;
-var sides = 0;
-var lines = 0;
-
-var radius = 7;
-var gradius;
-var gen = []; // set of generator points
-var gen2canv = []; // gen to canvas
-var edit2canv = []; // editor to canvas
-var canv2edit = []; // canvas to editor
-
-var mp = false;
-var md = false;
-var mdnode = 0;
-var mm = false;
-var oldx = 0;
-var oldy = 0;
-
-// see https://stackoverflow.com/questions/7486085/copy-array-by-value
+// Helper function for copying arrays
+// Ref: https://stackoverflow.com/questions/7486085/copy-array-by-value
 let clone = (arr) =>
   Array.from(arr, (item) => (Array.isArray(item) ? clone(item) : item));
 
-// see https://stackoverflow.com/questions/10892267/html5-canvas-transformation-algorithm-finding-object-coordinates-after-applyin
-// but http://www.johndcook.com/blog/2010/01/19/dont-invert-that-matrix/
+// Ref: https://stackoverflow.com/questions/10892267/html5-canvas-transformation-algorithm-finding-object-coordinates-after-applyin
+// Ref: http://www.johndcook.com/blog/2010/01/19/dont-invert-that-matrix/
 function calculateMatrices(hyp, x1, y1, x2, y2, x0, y0, sx = 1, sy = 1) {
   //hyp = sqrt((y2 - y1) * (y2 - y1) + (x2 - x1) * (x2 - x1));
   let opp = y2 - y1;
@@ -347,7 +332,7 @@ function calculateMatrices(hyp, x1, y1, x2, y2, x0, y0, sx = 1, sy = 1) {
   ];
 }
 
-// Takes a point in the form [x,y,1], returns a translated point in the same form
+// Takes a point in the form [x,y,1], returns a transformed point in the same form
 function dot(pt, arr) {
   if (!(pt instanceof Array) || !(arr instanceof Array)) {
     return [];
@@ -363,17 +348,18 @@ function dot(pt, arr) {
   return p;
 }
 
-// Takes an array of points [[x, y], ...], returns a translated array of points
-function xlat(pts, arr) {
+// Takes an array of points [[x, y], ...], returns a transformed array of points
+function transform(pts, arr) {
   let a = [];
-  for (pt of pts) {
+  for (const pt of pts) {
     a.push(dot([pt[0], pt[1], 1], arr));
   }
   return a;
 }
 
-// see https://en.wikipedia.org/wiki/Linear_equation#General_(or_standard)_form
-// see https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+// Return the distance to a line and the closest point on that line
+// Ref: https://en.wikipedia.org/wiki/Linear_equation#General_(or_standard)_form
+// Ref: https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
 function lineDistance(x1, y1, x2, y2, x0, y0) {
   let a = y1 - y2;
   let b = x2 - x1;
@@ -388,11 +374,12 @@ function lineDistance(x1, y1, x2, y2, x0, y0) {
   return [abs(num) / sqrt(den), x, y];
 }
 
+// Return the distance between two points
 function pointDistance(x1, y1, x2, y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
-function getpoint(x0, y0) {
+function getEditPointInfo(x0, y0) {
   let isclose = false;
   let isnode = false;
   let inode = 0;
@@ -413,6 +400,7 @@ function getpoint(x0, y0) {
     }
   }
   if (!isclose) {
+    let x1, y1, x2, y2, d, xn, yn;
     for (let i = 1; i < gen.length; i++) {
       x1 = gen[i - 1][0];
       y1 = gen[i - 1][1];
@@ -452,6 +440,7 @@ function fracture(hyp, x1, y1, x2, y2, x0 = 0, y0 = 0, sx = 1, sy = 1) {
   ];
 
   let v = [];
+  let xp;
   for (const p of gen) {
     xp = [p[0], p[1], 1];
     xp = dot(xp, gen2canv);
@@ -461,7 +450,7 @@ function fracture(hyp, x1, y1, x2, y2, x0 = 0, y0 = 0, sx = 1, sy = 1) {
 }
 
 function drawline(dep, x1, y1, x2, y2) {
-  if (lines > 30000) {
+  if (lines >= maxLines) {
     return;
   }
   const dist = pointDistance(x1, y1, x2, y2);
@@ -499,17 +488,15 @@ function getUserInput() {
 }
 
 function drawEditor() {
-  let mx = mouseX;
-  let my = mouseY;
   let gx;
   let gy;
   let x1;
   let y1;
   let x2;
   let y2;
-  [[gx, gy]] = xlat([[mx, my]], canv2edit);
+  [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
   text(
-    "gx " + gx.toFixed(2) + " gy " + gy.toFixed(2),
+    "x " + gx.toFixed(2) + " y " + gy.toFixed(2) + " lines " + lines,
     controlsX + 10,
     controlsY + 75
   );
@@ -520,7 +507,7 @@ function drawEditor() {
   }
 
   for (let i = 1; i < gen.length; i++) {
-    [[x1, y1], [x2, y2]] = xlat(
+    [[x1, y1], [x2, y2]] = transform(
       [
         [gen[i - 1][0], gen[i - 1][1]],
         [gen[i][0], gen[i][1]],
@@ -530,22 +517,13 @@ function drawEditor() {
     line(x1, y1, x2, y2);
   }
 
-  var [isclose, isnode, inode, isfixed, x, y] = getpoint(gx, gy);
-  [[cx, cy]] = xlat([[x, y]], edit2canv);
-
-  if (mp) {
-    //text("mouse pressed", 10, height - 10);
-    if (mx != oldx || my != oldy) {
-      //text("mouse dragged", 10, height - 20);
-      oldx = mx;
-      oldy = my;
-    }
-  }
+  var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
+  [[cx, cy]] = transform([[x, y]], edit2canv);
 
   if (isclose) {
     fill("black");
     for (i = 0; i < gen.length; i++) {
-      [[x, y]] = xlat([[gen[i][0], gen[i][1]]], edit2canv);
+      [[x, y]] = transform([[gen[i][0], gen[i][1]]], edit2canv);
       circle(x, y, radius);
     }
     if (isnode) {
@@ -560,9 +538,11 @@ function drawEditor() {
 
 function mousePressed() {
   if (!md && !mp) {
+    let gx;
+    let gy;
     mp = true;
-    [[gx, gy]] = xlat([[mouseX, mouseY]], canv2edit);
-    var [isclose, isnode, inode, isfixed, x, y] = getpoint(gx, gy);
+    [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
+    var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
     if (isclose && !isnode) {
       gen.splice(inode, 0, [x, y]);
     } else if (isnode && !isfixed && keyIsDown(SHIFT)) {
@@ -579,9 +559,11 @@ function mouseReleased() {
 
 function mouseDragged() {
   if (!md) {
+    let gx;
+    let gy;
     md = true;
-    [[gx, gy]] = xlat([[mouseX, mouseY]], canv2edit);
-    var [isclose, isnode, inode, isfixed, x, y] = getpoint(gx, gy);
+    [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
+    var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
     if (isnode && !isfixed) {
       mdnode = inode;
     } else {
@@ -597,7 +579,7 @@ function setupEditor() {
   let y2 = editorLine[3];
   let hyp = pointDistance(x1, y1, x2, y2);
   calculateMatrices(hyp, x1, y1, x2, y2, 0, 1, 1, -1);
-  [[x1, y1], [x2, y2]] = xlat(
+  [[x1, y1], [x2, y2]] = transform(
     [
       [0, 0],
       [0, radius],
@@ -607,10 +589,9 @@ function setupEditor() {
   gradius = pointDistance(x1, y1, x2, y2);
 }
 
-function setup() {
-  createCanvas(canvasd[0], canvasd[1]);
-  for (s of sliders) {
-    x = createSlider(s[0], s[1], s[2]);
+function setupControls() {
+  for (let s of sliders) {
+    let x = createSlider(s[0], s[1], s[2]);
     x.position(s[3], s[4]);
     x.size(s[5]);
     x.class("slider");
@@ -625,6 +606,11 @@ function setup() {
   radio.style("font-size", "12px");
   radio.style("font-family", "Arial, Helvetica, sans-serif");
   radio.selected(genIndex);
+}
+
+function setup() {
+  createCanvas(canvasd[0], canvasd[1]);
+  setupControls;
   gen = clone(generators[genIndex][0]);
   setupEditor();
 }
@@ -632,7 +618,7 @@ function setup() {
 function draw() {
   getUserInput();
   background(192);
-  for (s of sliders) {
+  for (const s of sliders) {
     text(s[7].value(), s[3] + s[5] + 10, s[4] + 12);
     text(s[6], s[3] + s[5] + 35, s[4] + 12);
   }
@@ -640,5 +626,4 @@ function draw() {
   lines = 0;
   drawline(1, 50, 300, 550, 300);
   //drawline(1, 550, 300, 50, 300);
-  text(lines, 10, height - 10);
 }
