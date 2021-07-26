@@ -49,7 +49,7 @@ var sliders = [
   [1, 8, 1, controlsX, controlsY + 40, 100, "Sides"],
 ];
 
-// Drawing variables
+// Graphic variables
 var gen = []; // set of generator points
 var gen2canv = []; // generator to canvas transform matrix
 var lines = 0;
@@ -308,6 +308,7 @@ var generators = {
 let clone = (arr) =>
   Array.from(arr, (item) => (Array.isArray(item) ? clone(item) : item));
 
+// Called once, by editor setup
 // Ref: https://stackoverflow.com/questions/10892267/html5-canvas-transformation-algorithm-finding-object-coordinates-after-applyin
 // Ref: http://www.johndcook.com/blog/2010/01/19/dont-invert-that-matrix/
 function calculateMatrices(hyp, x1, y1, x2, y2, x0, y0, sx = 1, sy = 1) {
@@ -449,7 +450,7 @@ function fracture(hyp, x1, y1, x2, y2, x0 = 0, y0 = 0, sx = 1, sy = 1) {
   return v;
 }
 
-function drawline(dep, x1, y1, x2, y2) {
+function drawLine(dep, x1, y1, x2, y2) {
   if (lines >= maxLines) {
     return;
   }
@@ -461,12 +462,13 @@ function drawline(dep, x1, y1, x2, y2) {
   } else {
     const l = fracture(dist, x1, y1, x2, y2);
     for (let i = 1; i < l.length; i++) {
-      drawline(d, l[i - 1][0], l[i - 1][1], l[i][0], l[i][1]);
+      drawLine(d, l[i - 1][0], l[i - 1][1], l[i][0], l[i][1]);
     }
   }
 }
 
-function getUserInput() {
+function readAndDrawControls() {
+  // Read
   let g = radio.value();
   if (g != genIndex) {
     if (genIndex == "Custom") {
@@ -485,9 +487,15 @@ function getUserInput() {
   maxDepth = sliders[0][7].value();
   minSeg = sliders[1][7].value();
   sides = sliders[2][7].value();
+
+  // Draw
+  for (const s of sliders) {
+    text(s[7].value(), s[3] + s[5] + 10, s[4] + 12);
+    text(s[6], s[3] + s[5] + 35, s[4] + 12);
+  }
 }
 
-function drawEditor() {
+function readAndDrawEditor() {
   let gx;
   let gy;
   let x1;
@@ -544,8 +552,10 @@ function mousePressed() {
     [[gx, gy]] = transform([[mouseX, mouseY]], canv2edit);
     var [isclose, isnode, inode, isfixed, x, y] = getEditPointInfo(gx, gy);
     if (isclose && !isnode) {
+      // Add a new node
       gen.splice(inode, 0, [x, y]);
-    } else if (isnode && !isfixed && keyIsDown(SHIFT)) {
+    } else if (isnode && keyIsDown(SHIFT) && !isfixed) {
+      // Remove a node (unless fixed endpoint)
       gen.splice(inode, 1);
     }
   }
@@ -572,23 +582,6 @@ function mouseDragged() {
   }
 }
 
-function setupEditor() {
-  let x1 = editorLine[0];
-  let y1 = editorLine[1];
-  let x2 = editorLine[2];
-  let y2 = editorLine[3];
-  let hyp = pointDistance(x1, y1, x2, y2);
-  calculateMatrices(hyp, x1, y1, x2, y2, 0, 1, 1, -1);
-  [[x1, y1], [x2, y2]] = transform(
-    [
-      [0, 0],
-      [0, radius],
-    ],
-    canv2edit
-  );
-  gradius = pointDistance(x1, y1, x2, y2);
-}
-
 function setupControls() {
   for (let s of sliders) {
     let x = createSlider(s[0], s[1], s[2]);
@@ -608,22 +601,35 @@ function setupControls() {
   radio.selected(genIndex);
 }
 
+function setupEditor() {
+  let x1 = editorLine[0];
+  let y1 = editorLine[1];
+  let x2 = editorLine[2];
+  let y2 = editorLine[3];
+  let hyp = pointDistance(x1, y1, x2, y2);
+  calculateMatrices(hyp, x1, y1, x2, y2, 0, 1, 1, -1);
+  [[x1, y1], [x2, y2]] = transform(
+    [
+      [0, 0],
+      [0, radius],
+    ],
+    canv2edit
+  );
+  gradius = pointDistance(x1, y1, x2, y2);
+  gen = clone(generators[genIndex][0]);
+}
+
 function setup() {
   createCanvas(canvasd[0], canvasd[1]);
-  setupControls;
-  gen = clone(generators[genIndex][0]);
+  setupControls();
   setupEditor();
 }
 
 function draw() {
-  getUserInput();
   background(192);
-  for (const s of sliders) {
-    text(s[7].value(), s[3] + s[5] + 10, s[4] + 12);
-    text(s[6], s[3] + s[5] + 35, s[4] + 12);
-  }
-  drawEditor();
+  readAndDrawControls();
+  readAndDrawEditor();
   lines = 0;
-  drawline(1, 50, 300, 550, 300);
-  //drawline(1, 550, 300, 50, 300);
+  drawLine(1, 50, 300, 550, 300);
+  //drawLine(1, 550, 300, 50, 300);
 }
